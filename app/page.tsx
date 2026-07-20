@@ -1,5 +1,5 @@
 "use client";
-
+import { supabase } from "@/lib/supabase";
 import { useState } from "react";
 import {
   DndContext,
@@ -86,8 +86,46 @@ function SortableAthlete({
 }
 
 export default function Home() {
+
+  async function submitPrediction() {
+  const trimmedName = playerName.trim();
+
+  if (!trimmedName) {
+    setStatus("error");
+    setErrorMessage("Please enter your name.");
+    return;
+  }
+
+  setStatus("saving");
+  setErrorMessage("");
+
+  const ranking = athletes.map((athlete, index) => ({
+    athlete_id: athlete.id,
+    athlete_name: athlete.name,
+    position: index + 1,
+  }));
+
+  const { error } = await supabase.from("predictions").insert({
+    player_name: trimmedName,
+    ranking,
+  });
+
+  if (error) {
+    console.error(error);
+    setStatus("error");
+    setErrorMessage(error.message);
+    return;
+  }
+
+  setStatus("success");
+}
+
   const [athletes, setAthletes] = useState(initialAthletes);
-  const [submitted, setSubmitted] = useState(false);
+  const [playerName, setPlayerName] = useState("");
+const [status, setStatus] = useState<
+  "idle" | "saving" | "success" | "error"
+>("idle");
+const [errorMessage, setErrorMessage] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -109,8 +147,7 @@ export default function Home() {
 
       return arrayMove(currentAthletes, oldIndex, newIndex);
     });
-
-    setSubmitted(false);
+    setStatus("idle");
   }
 
   return (
@@ -151,18 +188,45 @@ export default function Home() {
           </SortableContext>
         </DndContext>
 
-        <button
-          onClick={() => setSubmitted(true)}
-          className="mt-8 w-full rounded-xl bg-orange-600 px-6 py-4 font-bold text-white transition hover:bg-orange-700"
-        >
-          Submit prediction
-        </button>
+<div className="mt-8">
+  <label
+    htmlFor="playerName"
+    className="mb-2 block font-semibold text-zinc-900"
+  >
+    Your name
+  </label>
 
-        {submitted && (
-          <p className="mt-4 rounded-xl bg-green-100 p-4 text-center font-semibold text-green-800">
-            Prediction ready! Database saving comes next.
-          </p>
-        )}
+  <input
+    id="playerName"
+    value={playerName}
+    onChange={(event) => {
+      setPlayerName(event.target.value);
+      setStatus("idle");
+    }}
+    placeholder="Marc"
+    className="mb-4 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-zinc-900 outline-none focus:border-orange-600"
+  />
+
+  <button
+    onClick={submitPrediction}
+    disabled={status === "saving"}
+    className="w-full rounded-xl bg-orange-600 px-6 py-4 font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    {status === "saving" ? "Saving..." : "Submit prediction"}
+  </button>
+
+  {status === "success" && (
+    <p className="mt-4 rounded-xl bg-green-100 p-4 text-center font-semibold text-green-800">
+      Your prediction was saved!
+    </p>
+  )}
+
+  {status === "error" && (
+    <p className="mt-4 rounded-xl bg-red-100 p-4 text-center font-semibold text-red-800">
+      {errorMessage}
+    </p>
+  )}
+</div>
       </div>
     </main>
   );
